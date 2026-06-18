@@ -22,17 +22,34 @@ local BIND_NAME = "Reload Player Model"
 local function doReloadModel(player)
     if not player then return end
 
-    -- rebuild the full character model next frame (skin, clothing, attachments)
-    player:resetModelNextFrame()
-
-    -- also refresh held-item models, which share the same assembly path
+    -- 1) rebuild the model DATA (skin, clothing, attachments). On its own this
+    --    does NOT recover the B42 z-transition invisible-model state - those
+    --    resets are meant for appearance changes - but it's cheap and correct.
+    player:resetModel()
     if player.resetEquippedHandsModels then
         player:resetEquippedHandsModels()
     end
 
-    -- quick on-screen confirmation (addGoodText = green; B42 dropped the colored addText overload)
+    -- 2) re-register the character with the world/cell so the renderer
+    --    re-attaches its model on the current floor. The player object stays
+    --    valid (you can still move while invisible); it's the model that got
+    --    detached from the render scene. removeFromWorld()+addToWorld() is the
+    --    in-game equivalent of the full re-init a save reload does.
+    --    pcall-guarded: if it ever errors, the model-data reset above still ran.
+    local ok = pcall(function()
+        local sq = player:getCurrentSquare()
+        if sq then
+            player:removeFromWorld()
+            player:addToWorld()
+        end
+    end)
+
+    -- 3) one more rebuild next frame now that it's re-attached
+    player:resetModelNextFrame()
+
+    -- on-screen confirmation (addGoodText = green; B42 dropped the colored addText overload)
     if HaloTextHelper and HaloTextHelper.addGoodText then
-        HaloTextHelper.addGoodText(player, "Reloading model...")
+        HaloTextHelper.addGoodText(player, ok and "Reloading model..." or "Reloading model (partial)...")
     end
 end
 
