@@ -30,9 +30,9 @@ local function doReloadModel(player)
         player:resetEquippedHandsModels()
     end
 
-    -- quick on-screen confirmation
-    if HaloTextHelper and HaloTextHelper.addText then
-        HaloTextHelper.addText(player, "Reloading model...", HaloTextHelper.getColorGreen())
+    -- quick on-screen confirmation (addGoodText = green; B42 dropped the colored addText overload)
+    if HaloTextHelper and HaloTextHelper.addGoodText then
+        HaloTextHelper.addGoodText(player, "Reloading model...")
     end
 end
 
