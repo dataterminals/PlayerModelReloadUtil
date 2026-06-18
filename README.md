@@ -5,25 +5,24 @@ don't have to reload your save when your model vanishes.
 
 ## The problem
 
-In B42, a hard animation transition (notably **tripping while mantling a
-railing/fence**, which kicks the character into a fall/ragdoll pose) forces the
-engine to rebuild the character model. Occasionally that rebuild resolves a
-model's mesh to `null`:
+B42's **wall-cutaway hide system** fades your character out when you pass behind a
+wall it can't make transparent — most reliably the wall around a **basement
+stairwell**. Normally you fade back in on the other side, but on these stairwells
+the un-hide never fires: your character's per-player render alpha stays at `0`. You
+end up **invisible but fully functional** (you can still move, open your inventory,
+interact) — and it doesn't come back on its own, so the usual "fix" is reloading
+the whole save.
 
-```
-ERROR: General  at ProcessedAiScene.processAiScene > No such mesh "null".
-```
-
-A model with no mesh draws as nothing, so your character goes invisible until
-something else triggers a clean rebuild. It's made more likely by mods that ship
-malformed clothing/head models (broken FBX skeletons, missing bones), but the
-failing code is in the base engine.
+(Some setups also hit a related engine error, `ProcessedAiScene.processAiScene >
+No such mesh "null"`, where a model resolves to a null mesh — often tied to mods
+shipping malformed head/clothing FBX. This tool re-asserts visibility regardless of
+which of the two you hit.)
 
 ## The fix
 
-The mod calls `player:resetModelNextFrame()` — the exact model rebuild vanilla
-itself uses (e.g. when toggling blood/dirt). The character is reassembled on the
-next frame and reappears. Two ways to trigger it:
+The mod forces your character's render alpha back to fully visible
+(`setAlpha`/`setTargetAlpha` → `1.0`) and rebuilds the model data for good measure.
+The character reappears in place — no save reload. Two ways to trigger it:
 
 - **Keybind** — default `INSERT`. Rebind under Options → Key Bindings →
   **[Player Model Reload] → Reload Player Model**.
@@ -36,6 +35,8 @@ submenu is created shared, so other utility mods can add to it too.)
 
 - Standalone, no dependencies, load order irrelevant.
 - Single-player / local. Affects only your own character (`getSpecificPlayer(0)`).
-- This is a *recovery* tool, not a cure — it doesn't stop the invisible state
-  from happening, it just lets you fix it instantly in place.
+- This is a *recovery* tool, not a cure — it doesn't stop the hide from
+  happening, it just lets you reappear instantly in place.
+- It only changes rendering (alpha + model data); it never touches the world/grid,
+  so it can't affect your position or movement.
 - Safe to remove at any time.

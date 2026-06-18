@@ -1,4 +1,4 @@
 name=Player Model Reload Utility
 id=PlayerModelReloadUtil
-description=Forces the engine to rebuild your character's 3D model on demand - via a rebindable keybind (default INSERT) or right-click in-game > Utilities > Reload Player Model. Recovers from the B42 invisible-character bug - where an animation/ragdoll transition (e.g. tripping while mantling a railing) makes model assembly resolve a null mesh ("ProcessedAiScene > No such mesh null") and the character renders as nothing - without having to reload the save. Calls resetModelNextFrame(), the same model rebuild vanilla uses for blood/dirt. Standalone, no dependencies, load order irrelevant. Safe to remove.
-modversion=1.0.0
+description=Recovers from the B42 invisible-character bug without reloading your save. Most often it's the wall-cutaway hide system leaving you invisible-but-functional after passing behind a basement stairwell wall (your render alpha gets stuck at 0). This forces your character's alpha back to fully visible (plus a model-data rebuild) so you reappear in place. Trigger via a rebindable keybind (default INSERT) or right-click in-game > Utilities > Reload Player Model. Only changes rendering, never the world/grid, so it can't affect your position. Standalone, no dependencies, load order irrelevant. Safe to remove.
+modversion=1.1.0
