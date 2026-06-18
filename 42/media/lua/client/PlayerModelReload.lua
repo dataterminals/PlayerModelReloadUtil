@@ -22,34 +22,30 @@ local BIND_NAME = "Reload Player Model"
 local function doReloadModel(player)
     if not player then return end
 
-    -- 1) rebuild the model DATA (skin, clothing, attachments). On its own this
-    --    does NOT recover the B42 z-transition invisible-model state - those
-    --    resets are meant for appearance changes - but it's cheap and correct.
-    player:resetModel()
+    -- The basement/stairwell glitch is the WALL-CUTAWAY hide system: when you
+    -- pass behind a wall it can't make transparent, the engine fades the
+    -- character's per-player alpha toward 0 - and on these stairwells the
+    -- un-hide doesn't fire, so you stay invisible (but fully functional).
+    -- The fix is to force the player's render alpha back to fully visible.
+    -- NOTE: this does NOT touch the world/grid (an earlier removeFromWorld
+    -- approach detached the player - never do that to the live player).
+
+    -- 1) force visibility back on (pcall-guarded: a wrong signature just no-ops)
+    pcall(function()
+        local pn = player:getPlayerNum() or 0
+        if player.setAlpha then player:setAlpha(pn, 1.0) end
+        if player.setTargetAlpha then player:setTargetAlpha(pn, 1.0) end
+    end)
+
+    -- 2) rebuild model data too (cheap, safe; helps if the visual is also stale)
+    player:resetModelNextFrame()
     if player.resetEquippedHandsModels then
         player:resetEquippedHandsModels()
     end
 
-    -- 2) re-register the character with the world/cell so the renderer
-    --    re-attaches its model on the current floor. The player object stays
-    --    valid (you can still move while invisible); it's the model that got
-    --    detached from the render scene. removeFromWorld()+addToWorld() is the
-    --    in-game equivalent of the full re-init a save reload does.
-    --    pcall-guarded: if it ever errors, the model-data reset above still ran.
-    local ok = pcall(function()
-        local sq = player:getCurrentSquare()
-        if sq then
-            player:removeFromWorld()
-            player:addToWorld()
-        end
-    end)
-
-    -- 3) one more rebuild next frame now that it's re-attached
-    player:resetModelNextFrame()
-
     -- on-screen confirmation (addGoodText = green; B42 dropped the colored addText overload)
     if HaloTextHelper and HaloTextHelper.addGoodText then
-        HaloTextHelper.addGoodText(player, ok and "Reloading model..." or "Reloading model (partial)...")
+        HaloTextHelper.addGoodText(player, "Reloading model...")
     end
 end
 
