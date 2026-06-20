@@ -1,62 +1,81 @@
 --[[
     Player Model Reload Utility
     ---------------------------
-    Rebuilds the local player's 3D model on demand, via either:
-      * a rebindable keybind (default INSERT), or
-      * right-click in-game -> Utilities -> Reload Player Model
+    Keeps your character visible through the B42 wall-cutaway "invisible player"
+    bug without reloading the save.
 
-    Recovers from the B42 invisible-character bug without reloading the save:
-    when an animation/ragdoll transition (e.g. tripping while mantling a
-    railing) forces a model rebuild, the engine can resolve a model's mesh to
-    null -> "ERROR: ProcessedAiScene.processAiScene > No such mesh null" -> the
-    character renders as nothing. resetModelNextFrame() reassembles the model
-    on the next frame; it is the same call vanilla uses when toggling
-    blood/dirt on the character (see ISDebugBlood.lua).
+    The bug: when you pass behind a wall the engine can't make transparent - most
+    reliably the wall around a basement stairwell - the cutaway system fades your
+    character's per-player render alpha toward 0 to hide you. In these spots the
+    un-hide never fires, and the engine keeps re-driving alpha back to 0 every
+    frame, so you stay invisible (but fully functional). A one-shot reload only
+    makes you reappear for a moment before it re-hides you.
 
-    Standalone, no dependencies, load order irrelevant. Safe to remove.
+    Two tools (both right-click -> Utilities, plus a keybind for the reload):
+      * Auto-Visibility (default ON): every frame, re-assert full alpha so the
+        cutaway can never hold you invisible. This is the hands-free fix.
+      * Reload Player Model (keybind default INSERT): one-shot force-visible +
+        model-data rebuild, also useful for the rarer null-mesh model glitch.
+
+    Only ever changes rendering (alpha + model data). It never touches the
+    world/grid, so it cannot affect your position or movement. Standalone, no
+    dependencies, load order irrelevant. Safe to remove.
 ]]
 
 local BIND_NAME = "Reload Player Model"
 
--- shared action used by both the keybind and the context menu
-local function doReloadModel(player)
+PMRU = PMRU or {}
+if PMRU.autoVisible == nil then PMRU.autoVisible = true end
+
+-- core: force the local player's render alpha back to fully visible
+local function forceVisible(player)
     if not player then return end
-
-    -- The basement/stairwell glitch is the WALL-CUTAWAY hide system: when you
-    -- pass behind a wall it can't make transparent, the engine fades the
-    -- character's per-player alpha toward 0 - and on these stairwells the
-    -- un-hide doesn't fire, so you stay invisible (but fully functional).
-    -- The fix is to force the player's render alpha back to fully visible.
-    -- NOTE: this does NOT touch the world/grid (an earlier removeFromWorld
-    -- approach detached the player - never do that to the live player).
-
-    -- 1) force visibility back on (pcall-guarded: a wrong signature just no-ops)
     pcall(function()
         local pn = player:getPlayerNum() or 0
-        if player.setAlpha then player:setAlpha(pn, 1.0) end
+        player:setAlpha(pn, 1.0)
         if player.setTargetAlpha then player:setTargetAlpha(pn, 1.0) end
     end)
+end
 
-    -- 2) rebuild model data too (cheap, safe; helps if the visual is also stale)
+-- manual one-shot: force visible + rebuild model data (covers the rarer
+-- "No such mesh null" model glitch as well as the cutaway hide)
+local function doReloadModel(player)
+    if not player then return end
+    forceVisible(player)
     player:resetModelNextFrame()
     if player.resetEquippedHandsModels then
         player:resetEquippedHandsModels()
     end
-
-    -- on-screen confirmation (addGoodText = green; B42 dropped the colored addText overload)
     if HaloTextHelper and HaloTextHelper.addGoodText then
         HaloTextHelper.addGoodText(player, "Reloading model...")
     end
 end
 
--- keybind -> reload the main local player
+-- auto watchdog: every frame, undo the cutaway hide so you never go invisible.
+-- (Leaves vehicles alone - the player model is handled differently while driving.)
+local function autoEnforce(player)
+    if not PMRU.autoVisible then return end
+    if not player or player:getPlayerNum() ~= 0 then return end
+    if player:getVehicle() then return end
+    forceVisible(player)
+end
+
+local function toggleAuto(player)
+    PMRU.autoVisible = not PMRU.autoVisible
+    if player and HaloTextHelper and HaloTextHelper.addGoodText then
+        HaloTextHelper.addGoodText(player,
+            PMRU.autoVisible and "Auto-Visibility: ON" or "Auto-Visibility: OFF")
+    end
+end
+
+-- keybind -> one-shot reload of the main local player
 local function onKeyPressed(key)
     if not getCore():isKey(BIND_NAME, key) then return end
     doReloadModel(getSpecificPlayer(0))
 end
 
--- right-click world menu -> Utilities submenu -> Reload Player Model
-local function onFillContextMenu(playerIndex, context, worldobjects)
+-- right-click world menu -> Utilities submenu
+local function onFillContextMenu(playerIndex, context)
     local player = getSpecificPlayer(playerIndex)
     if not player then return end
 
@@ -73,6 +92,9 @@ local function onFillContextMenu(playerIndex, context, worldobjects)
     end
 
     utilSubMenu:addOption("Reload Player Model", player, doReloadModel)
+    utilSubMenu:addOption(
+        PMRU.autoVisible and "Auto-Visibility: ON" or "Auto-Visibility: OFF",
+        player, toggleAuto)
 end
 
 -- register the rebindable key once (it appears in Options > Key Bindings)
@@ -87,3 +109,4 @@ end
 registerKeyBind()
 Events.OnKeyPressed.Add(onKeyPressed)
 Events.OnFillWorldObjectContextMenu.Add(onFillContextMenu)
+Events.OnPlayerUpdate.Add(autoEnforce)

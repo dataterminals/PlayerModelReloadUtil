@@ -1,42 +1,66 @@
 # Player Model Reload Utility (B42)
 
-A one-key fix for the **invisible-character bug** in Project Zomboid B42 — so you
-don't have to reload your save when your model vanishes.
+Keeps your character visible through the **invisible-character bug** in Project
+Zomboid B42 — no more reloading your save when your model vanishes.
 
 ## The problem
 
 B42's **wall-cutaway hide system** fades your character out when you pass behind a
 wall it can't make transparent — most reliably the wall around a **basement
-stairwell**. Normally you fade back in on the other side, but on these stairwells
-the un-hide never fires: your character's per-player render alpha stays at `0`. You
-end up **invisible but fully functional** (you can still move, open your inventory,
-interact) — and it doesn't come back on its own, so the usual "fix" is reloading
-the whole save.
+stairwell**. Normally you fade back in on the other side, but in these spots the
+engine keeps re-issuing the hide: it drives your character's per-player render
+alpha to `0` **every frame** and holds it there. You end up **invisible but fully
+functional** (you can still move, open your inventory, interact), and it doesn't
+recover on its own — so the usual "fix" is reloading the whole save.
+
+Logged in-game, the stuck state looks like this (`targetAlpha` pinned at 0):
+
+```
+alpha=1.00 targetAlpha=0.00   ← engine requests "hidden"
+alpha=0.51 targetAlpha=0.00   ← alpha ramps down
+alpha=0.00 targetAlpha=0.00   ← fully invisible, held there
+```
+
+Because the engine re-asserts the hide every frame, a one-shot fix only makes you
+reappear for a moment before it re-hides you.
 
 (Some setups also hit a related engine error, `ProcessedAiScene.processAiScene >
 No such mesh "null"`, where a model resolves to a null mesh — often tied to mods
-shipping malformed head/clothing FBX. This tool re-asserts visibility regardless of
-which of the two you hit.)
+shipping malformed head/clothing FBX. The manual reload covers that case too.)
 
 ## The fix
 
-The mod forces your character's render alpha back to fully visible
-(`setAlpha`/`setTargetAlpha` → `1.0`) and rebuilds the model data for good measure.
-The character reappears in place — no save reload. Two ways to trigger it:
+**Auto-Visibility (default ON)** — every frame, the mod re-asserts your render
+alpha to `1.0`, so the cutaway system can never hold you invisible. It runs as
+often as the engine re-hides you, so you simply stay visible with no input. This
+is the hands-free fix.
+
+**Reload Player Model (manual one-shot)** — force-visible plus a model-data
+rebuild (`resetModelNextFrame`), which also covers the rarer null-mesh model
+glitch. Trigger it via:
 
 - **Keybind** — default `INSERT`. Rebind under Options → Key Bindings →
   **[Player Model Reload] → Reload Player Model**.
 - **Context menu** — right-click in-game → **Utilities → Reload Player Model**.
 
-A small green "Reloading model..." halo confirms it fired. (The "Utilities"
-submenu is created shared, so other utility mods can add to it too.)
+Both live under a shared right-click **Utilities** submenu, where you can also
+toggle **Auto-Visibility** off (to restore the normal wall-fade behaviour).
+
+## Visibility Diagnostics (optional, off by default)
+
+A read-only debug tool under **Utilities → Visibility Diagnostics**. While on, it
+logs your render state (`alpha`, `targetAlpha`, z-level, the square here and the
+square above) to `console.txt` / the DebugLog, tagged `PMRU-DIAG`. Useful for
+confirming whether the engine is actively hiding you (`targetAlpha=0`) versus a
+stuck fade. Leave it off in normal play — it writes a line whenever your
+visibility changes.
 
 ## Notes
 
 - Standalone, no dependencies, load order irrelevant.
 - Single-player / local. Affects only your own character (`getSpecificPlayer(0)`).
-- This is a *recovery* tool, not a cure — it doesn't stop the hide from
-  happening, it just lets you reappear instantly in place.
-- It only changes rendering (alpha + model data); it never touches the world/grid,
-  so it can't affect your position or movement.
+- It only changes **rendering** (alpha + model data); it never touches the
+  world/grid, so it cannot affect your position or movement.
+- Auto-Visibility leaves vehicles alone (the player model is handled differently
+  while driving).
 - Safe to remove at any time.
