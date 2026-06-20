@@ -5,11 +5,9 @@ Zomboid B42 — no more reloading your save when your model vanishes.
 
 ## The problem
 
-B42's **wall-cutaway hide system** fades your character out when you pass behind a
-wall it can't make transparent — most reliably the wall around a **basement
-stairwell**. Normally you fade back in on the other side, but in these spots the
-engine keeps re-issuing the hide: it drives your character's per-player render
-alpha to `0` **every frame** and holds it there. You end up **invisible but fully
+In some spots — **most often after moving between a basement and the floor
+above** — the engine forces your character's per-player render alpha to `0` and
+**re-asserts it every frame**, holding you hidden. You end up **invisible but fully
 functional** (you can still move, open your inventory, interact), and it doesn't
 recover on its own — so the usual "fix" is reloading the whole save.
 
@@ -23,6 +21,13 @@ alpha=0.00 targetAlpha=0.00   ← fully invisible, held there
 
 Because the engine re-asserts the hide every frame, a one-shot fix only makes you
 reappear for a moment before it re-hides you.
+
+> **Note on the cause:** this looks like the same per-player alpha the engine uses
+> to fade you behind walls, but the *exact* trigger here is unconfirmed. Diagnostics
+> caught the stuck state on **open ground with nothing overhead** (`room=n bld=n
+> above=none`), which rules out the obvious "hidden behind a wall under a building"
+> explanation. The fix re-asserts visibility regardless of *why* the engine hides
+> you, so pinning down the precise trigger isn't required.
 
 (Some setups also hit a related engine error, `ProcessedAiScene.processAiScene >
 No such mesh "null"`, where a model resolves to a null mesh — often tied to mods
